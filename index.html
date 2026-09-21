@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NOVA — KI-Sprachassistent</title>
+<meta name="theme-color" content="#070b10">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NOVA">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23070b10'/%3E%3Ccircle cx='60' cy='60' r='40' fill='none' stroke='%234dd8e6' stroke-width='3'/%3E%3Ccircle cx='60' cy='60' r='22' fill='none' stroke='%238b7cff' stroke-width='2.5'/%3E%3Ccircle cx='60' cy='60' r='7' fill='%234dd8e6'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23070b10'/%3E%3Ccircle cx='60' cy='60' r='40' fill='none' stroke='%234dd8e6' stroke-width='3'/%3E%3Ccircle cx='60' cy='60' r='22' fill='none' stroke='%238b7cff' stroke-width='2.5'/%3E%3Ccircle cx='60' cy='60' r='7' fill='%234dd8e6'/%3E%3C/svg%3E">
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22NOVA%20%E2%80%93%20KI-Sprachassistent%22%2C%22short_name%22%3A%22NOVA%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23070b10%22%2C%22theme_color%22%3A%22%23070b10%22%7D">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #070b10;
+    --panel: #0c131b;
+    --panel-alt: #0f1922;
+    --line: rgba(77, 216, 230, 0.18);
+    --line-strong: rgba(77, 216, 230, 0.4);
+    --cyan: #4dd8e6;
+    --cyan-dim: #2c7c85;
+    --violet: #8b7cff;
+    --amber: #ffb454;
+    --danger: #ff6b6b;
+    --success: #4ddba0;
+    --text: #d7e4ea;
+    --text-muted: #5f7480;
+    --text-dim: #3c4a53;
+    --radius-sm: 3px;
+    --font-ui: 'Space Grotesk', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  *{ box-sizing: border-box; margin:0; padding:0; }
+
+  html, body{
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    overflow: hidden;
+  }
+
+  body{
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background:
+      radial-gradient(ellipse 120% 80% at 50% -10%, rgba(77,216,230,0.06), transparent 60%),
+      radial-gradient(ellipse 100% 60% at 50% 110%, rgba(139,124,255,0.05), transparent 60%),
+      var(--bg);
+  }
+
+  :focus-visible{
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  /* ---------- Hairline grid backdrop ---------- */
+  .grid-overlay{
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(77,216,230,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(77,216,230,0.025) 1px, transparent 1px);
+    background-size: 42px 42px;
+    z-index: 0;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 85%);
+  }
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+
+  .brand{
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .brand-mark{
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.14em;
+    color: var(--cyan);
+  }
+
+  .brand-sub{
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+  }
+
+  .status-cluster{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .status-dot{
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    background: var(--text-dim);
+    transition: background 0.6s ease, box-shadow 0.6s ease;
+  }
+  .status-dot.on{
+    background: var(--success);
+    box-shadow: 0 0 6px rgba(77,219,160,0.6);
+  }
+  .status-dot.local{
+    background: var(--amber);
+    box-shadow: 0 0 6px rgba(255,180,84,0.5);
+  }
+
+  .icon-btn{
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-muted);
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+  .icon-btn:hover{
+    color: var(--cyan);
+    border-color: var(--line-strong);
+    background: rgba(77,216,230,0.05);
+  }
+
+  /* ---------- Main layout ---------- */
+  main{
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    min-height: 0;
+  }
+
+  .stage{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    padding: 18px;
+    min-height: 0;
+  }
+
+  .visualizer-wrap{
+    position: relative;
+    width: min(52vh, 74vw, 360px);
+    height: min(52vh, 74vw, 360px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 1;
+  }
+
+  #visualizer{
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .core-readout{
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    pointer-events: none;
+  }
+
+  .core-state{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: var(--cyan);
+    text-shadow: 0 0 12px rgba(77,216,230,0.4);
+    transition: color 0.5s ease, text-shadow 0.5s ease;
+  }
+  .core-state.listening{ color: var(--violet); text-shadow: 0 0 12px rgba(139,124,255,0.45); }
+  .core-state.thinking{ color: var(--amber); text-shadow: 0 0 12px rgba(255,180,84,0.35); }
+
+  .core-sub{
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+  }
+
+  .mic-btn{
+    position: relative;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    border: 1px solid var(--line-strong);
+    background: var(--panel);
+    color: var(--cyan);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.3s ease, box-shadow 0.4s ease, background 0.3s ease;
+    flex-shrink: 0;
+  }
+  .mic-btn:hover{ border-color: var(--cyan); }
+  .mic-btn.listening{
+    border-color: var(--violet);
+    box-shadow: 0 0 0 6px rgba(139,124,255,0.08);
+    background: rgba(139,124,255,0.08);
+  }
+  .mic-btn.speaking{
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 6px rgba(77,216,230,0.08);
+  }
+  .mic-btn:disabled{ opacity: 0.4; cursor: not-allowed; }
+
+  .mic-btn svg{ width: 26px; height: 26px; }
+
+  .hint-text{
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    text-align: center;
+    min-height: 14px;
+  }
+
+  /* ---------- Chat dock ---------- */
+  .chat-dock{
+    border-top: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(12,19,27,0.4), rgba(12,19,27,0.85));
+    display: flex;
+    flex-direction: column;
+    max-height: 40vh;
+    flex-shrink: 0;
+  }
+
+  .chat-log{
+    overflow-y: auto;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  .chat-log::-webkit-scrollbar{ width: 6px; }
+  .chat-log::-webkit-scrollbar-thumb{ background: var(--line-strong); }
+
+  .msg{
+    max-width: 82%;
+    font-size: 13.5px;
+    line-height: 1.5;
+    padding: 9px 13px;
+    border: 1px solid var(--line);
+    animation: msg-in 0.35s ease;
+  }
+  @keyframes msg-in{
+    from{ opacity: 0; transform: translateY(4px); }
+    to{ opacity: 1; transform: translateY(0); }
+  }
+
+  .msg .msg-meta{
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .msg.user{
+    align-self: flex-end;
+    background: rgba(139,124,255,0.06);
+    border-color: rgba(139,124,255,0.25);
+    clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
+  }
+  .msg.user .msg-meta{ color: var(--violet); text-align: right; }
+
+  .msg.assistant{
+    align-self: flex-start;
+    background: var(--panel-alt);
+    border-color: var(--line);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  }
+  .msg.assistant .msg-meta{ color: var(--cyan); }
+
+  .msg.system{
+    align-self: center;
+    background: transparent;
+    border-color: var(--line);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: center;
+  }
+  .msg.error{
+    align-self: center;
+    border-color: rgba(255,107,107,0.35);
+    color: var(--danger);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .composer{
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--line);
+  }
+
+  .composer input[type="text"]{
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+  }
+  .composer input[type="text"]:focus{ border-color: var(--line-strong); }
+  .composer input[type="text"]::placeholder{ color: var(--text-dim); }
+
+  .composer button{
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    color: var(--cyan);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    padding: 0 16px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s ease;
+  }
+  .composer button:hover{ background: rgba(77,216,230,0.08); }
+
+  /* ---------- Settings drawer ---------- */
+  .scrim{
+    position: fixed;
+    inset: 0;
+    background: rgba(3,6,9,0.55);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 9;
+  }
+  .scrim.open{ opacity: 1; pointer-events: auto; }
+
+  .settings-panel{
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: min(340px, 88vw);
+    background: var(--panel);
+    border-left: 1px solid var(--line-strong);
+    z-index: 10;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .settings-panel.open{ transform: translateX(0); }
+
+  .settings-header{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .settings-header h2{
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    color: var(--cyan);
+    font-weight: 600;
+  }
+
+  .settings-body{
+    padding: 18px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .field-group label{
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .field-group input[type="text"],
+  .field-group input[type="password"],
+  .field-group select{
+    width: 100%;
+    background: var(--panel-alt);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+  }
+  .field-group input:focus, .field-group select:focus{ border-color: var(--line-strong); }
+
+  .field-hint{
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 5px;
+    line-height: 1.4;
+  }
+
+  .field-row{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .field-row input[type="range"]{ flex: 1; accent-color: var(--cyan); }
+  .field-row .range-val{
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--cyan);
+    width: 34px;
+    text-align: right;
+  }
+
+  .settings-divider{
+    border: none;
+    border-top: 1px solid var(--line);
+  }
+
+  .btn-primary{
+    background: rgba(77,216,230,0.1);
+    border: 1px solid var(--line-strong);
+    color: var(--cyan);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    padding: 11px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s ease;
+  }
+  .btn-primary:hover{ background: rgba(77,216,230,0.18); }
+
+  .btn-ghost{
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+  .btn-ghost:hover{ color: var(--text); border-color: var(--line-strong); }
+
+  .toggle-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .switch{
+    position: relative;
+    width: 38px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  .switch input{ opacity: 0; width: 0; height: 0; }
+  .switch .track{
+    position: absolute; inset: 0;
+    background: var(--panel-alt);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    transition: background 0.25s ease, border-color 0.25s ease;
+  }
+  .switch .thumb{
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.25s ease, background 0.25s ease;
+  }
+  .switch input:checked + .track{ border-color: var(--line-strong); background: rgba(77,216,230,0.12); }
+  .switch input:checked + .track .thumb{ transform: translateX(18px); background: var(--cyan); }
+
+  /* ---------- Reduced motion ---------- */
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  @media (max-width: 520px){
+    .status-cluster span.status-label-text{ display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="grid-overlay" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">NOVA</span>
+    <span class="brand-sub">SPRACHSCHNITTSTELLE&nbsp;/&nbsp;v1.0</span>
+  </div>
+  <div class="status-cluster">
+    <span id="clock">--:--:--</span>
+    <span><span class="status-dot" id="linkDot"></span><span class="status-label-text" id="linkLabel">LOKALER MODUS</span></span>
+    <button class="icon-btn" id="settingsBtn" aria-label="Einstellungen öffnen" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <section class="stage">
+    <div class="visualizer-wrap">
+      <canvas id="visualizer" width="360" height="360" role="img" aria-label="Sprachaktivitäts-Visualisierung"></canvas>
+      <div class="core-readout">
+        <div class="core-state" id="stateLabel">BEREIT</div>
+        <div class="core-sub" id="stateSub">Mikrofon zum Starten berühren</div>
+      </div>
+    </div>
+
+    <button class="mic-btn" id="micBtn" aria-label="Spracheingabe starten">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" id="micIcon">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+        <line x1="12" y1="19" x2="12" y2="23"></line>
+        <line x1="8" y1="23" x2="16" y2="23"></line>
+      </svg>
+    </button>
+    <div class="hint-text" id="hintText">Tippen zum Sprechen, erneut tippen zum Beenden</div>
+  </section>
+
+  <section class="chat-dock">
+    <div class="chat-log" id="chatLog" role="log" aria-live="polite" aria-label="Gesprächsverlauf"></div>
+    <form class="composer" id="composer">
+      <input type="text" id="textInput" placeholder="Nachricht eingeben …" autocomplete="off" aria-label="Textnachricht eingeben">
+      <button type="submit">SENDEN</button>
+    </form>
+  </section>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="settings-panel" id="settingsPanel" role="dialog" aria-label="Einstellungen" aria-hidden="true">
+  <div class="settings-header">
+    <h2>SYSTEM&nbsp;/&nbsp;EINSTELLUNGEN</h2>
+    <button class="icon-btn" id="closeSettings" aria-label="Einstellungen schließen">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8">
+        <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+  <div class="settings-body">
+
+    <div class="field-group">
+      <label for="apiEndpoint">API-ENDPUNKT (OPTIONAL)</label>
+      <input type="text" id="apiEndpoint" placeholder="https://api.openai.com/v1/chat/completions">
+      <div class="field-hint">Voreingestellt: OpenRouter (kostenlos, kein Backend nötig). Wichtig: Viele Anbieter wie OpenAI oder Groq blockieren direkte Anfragen aus dem Browser (CORS) — sie brauchen einen eigenen Server dazwischen. OpenRouter und Google Gemini erlauben Browser-Zugriff direkt.</div>
+    </div>
+
+    <div class="field-group">
+      <label for="apiKey">API-SCHLÜSSEL</label>
+      <input type="password" id="apiKey" placeholder="sk-…" autocomplete="off">
+      <div class="field-hint">Kostenlosen Schlüssel erhältst du unter openrouter.ai/settings/keys (keine Kreditkarte nötig). Wird ausschließlich lokal in diesem Browser gespeichert und nur an den oben angegebenen Endpunkt gesendet.</div>
+    </div>
+
+    <div class="field-group">
+      <label for="apiModel">MODELLNAME</label>
+      <input type="text" id="apiModel" placeholder="openrouter/free">
+    </div>
+
+    <hr class="settings-divider">
+
+    <div class="field-group">
+      <label for="voiceSelect">SYSTEMSTIMME</label>
+      <select id="voiceSelect"></select>
+      <div class="field-hint" id="voiceHint">Stimmen werden geladen …</div>
+    </div>
+
+    <div class="field-group">
+      <label for="rateSlider">SPRECHGESCHWINDIGKEIT</label>
+      <div class="field-row">
+        <input type="range" id="rateSlider" min="0.6" max="1.6" step="0.05" value="1">
+        <span class="range-val" id="rateVal">1.0×</span>
+      </div>
+    </div>
+
+    <div class="field-group toggle-row">
+      <label for="autoListen" style="margin:0;">AUTOMATISCH WEITER ZUHÖREN</label>
+      <label class="switch">
+        <input type="checkbox" id="autoListen">
+        <span class="track"><span class="thumb"></span></span>
+      </label>
+    </div>
+
+    <hr class="settings-divider">
+
+    <button class="btn-primary" id="saveSettings">EINSTELLUNGEN SPEICHERN</button>
+    <button class="btn-ghost" id="clearChat">VERLAUF LÖSCHEN</button>
+    <div class="field-hint" id="saveConfirm" style="text-align:center; min-height: 14px;"></div>
+  </div>
+</aside>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ============ Uhr ============ */
+  const clockEl = document.getElementById('clock');
+  function tickClock(){
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString('de-DE', {hour12:false});
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  /* ============ Persistente Einstellungen ============ */
+  const DEFAULTS = {
+    endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+    apiKey: '',
+    model: 'openrouter/free',
+    voiceURI: '',
+    rate: 1,
+    autoListen: false
+  };
+
+  function loadSettings(){
+    try{
+      const raw = localStorage.getItem('nova_settings');
+      if(!raw) return {...DEFAULTS};
+      return {...DEFAULTS, ...JSON.parse(raw)};
+    }catch(e){
+      return {...DEFAULTS};
+    }
+  }
+  function persistSettings(s){
+    try{ localStorage.setItem('nova_settings', JSON.stringify(s)); }catch(e){ /* Speicher nicht verfügbar */ }
+  }
+
+  let settings = loadSettings();
+
+  /* ============ Elemente ============ */
+  const settingsBtn = document.getElementById('settingsBtn');
+  const closeSettings = document.getElementById('closeSettings');
+  const settingsPanel = document.getElementById('settingsPanel');
+  const scrim = document.getElementById('scrim');
+  const apiEndpoint = document.getElementById('apiEndpoint');
+  const apiKeyInput = document.getElementById('apiKey');
+  const apiModel = document.getElementById('apiModel');
+  const voiceSelect = document.getElementById('voiceSelect');
+  const rateSlider = document.getElementById('rateSlider');
+  const rateVal = document.getElementById('rateVal');
+  const autoListen = document.getElementById('autoListen');
+  const saveSettingsBtn = document.getElementById('saveSettings');
+  const clearChatBtn = document.getElementById('clearChat');
+  const saveConfirm = document.getElementById('saveConfirm');
+  const linkDot = document.getElementById('linkDot');
+  const linkLabel = document.getElementById('linkLabel');
+
+  function applySettingsToForm(){
+    apiEndpoint.value = settings.endpoint;
+    apiKeyInput.value = settings.apiKey;
+    apiModel.value = settings.model;
+    rateSlider.value = settings.rate;
+    rateVal.textContent = Number(settings.rate).toFixed(2).replace(/0$/,'') + '×';
+    autoListen.checked = settings.autoListen;
+    updateLinkStatus();
+  }
+
+  function updateLinkStatus(){
+    const connected = !!(settings.endpoint && settings.apiKey);
+    linkDot.classList.toggle('on', connected);
+    linkDot.classList.toggle('local', !connected);
+    linkLabel.textContent = connected ? 'API VERBUNDEN' : 'LOKALER MODUS';
+  }
+
+  function openSettings(){
+    settingsPanel.classList.add('open');
+    settingsPanel.setAttribute('aria-hidden','false');
+    scrim.classList.add('open');
+  }
+  function closeSettingsPanel(){
+    settingsPanel.classList.remove('open');
+    settingsPanel.setAttribute('aria-hidden','true');
+    scrim.classList.remove('open');
+  }
+  settingsBtn.addEventListener('click', openSettings);
+  closeSettings.addEventListener('click', closeSettingsPanel);
+  scrim.addEventListener('click', closeSettingsPanel);
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeSettingsPanel(); });
+
+  rateSlider.addEventListener('input', ()=>{
+    rateVal.textContent = Number(rateSlider.value).toFixed(2).replace(/0$/,'') + '×';
+  });
+
+  saveSettingsBtn.addEventListener('click', ()=>{
+    settings.endpoint = apiEndpoint.value.trim();
+    settings.apiKey = apiKeyInput.value.trim();
+    settings.model = apiModel.value.trim() || DEFAULTS.model;
+    settings.voiceURI = voiceSelect.value;
+    settings.rate = parseFloat(rateSlider.value);
+    settings.autoListen = autoListen.checked;
+    persistSettings(settings);
+    updateLinkStatus();
+    saveConfirm.textContent = 'Gespeichert.';
+    saveConfirm.style.color = 'var(--success)';
+    setTimeout(()=>{ saveConfirm.textContent = ''; }, 2200);
+  });
+
+  clearChatBtn.addEventListener('click', ()=>{
+    chatLog.innerHTML = '';
+    addMessage('system', 'Verlauf gelöscht.');
+  });
+
+  /* ============ Stimmen ============ */
+  function populateVoices(){
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    const prevValue = voiceSelect.value || settings.voiceURI;
+    voiceSelect.innerHTML = '';
+
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'Gerätestandard (automatisch)';
+    voiceSelect.appendChild(defaultOpt);
+
+    const deVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('de'));
+    const list = deVoices.length ? deVoices : voices;
+
+    list.forEach(v=>{
+      const opt = document.createElement('option');
+      opt.value = v.voiceURI;
+      opt.textContent = v.name + ' (' + v.lang + ')';
+      voiceSelect.appendChild(opt);
+    });
+
+    if(prevValue && [...voiceSelect.options].some(o => o.value === prevValue)){
+      voiceSelect.value = prevValue;
+    }
+
+    if(voices.length === 0){
+      const hint = document.getElementById('voiceHint');
+      if(hint) hint.textContent = 'Stimmen werden geladen … falls die Liste leer bleibt, wird automatisch die Gerätestandardstimme genutzt.';
+    }else{
+      const hint = document.getElementById('voiceHint');
+      if(hint) hint.textContent = list.length && list !== voices ? 'Deutsche Stimmen gefunden.' : 'Keine deutsche Stimme gefunden — alle verfügbaren Stimmen werden angezeigt.';
+    }
+  }
+
+  if('speechSynthesis' in window){
+    populateVoices();
+    window.speechSynthesis.onvoiceschanged = populateVoices;
+    let voiceRetries = 0;
+    const voiceRetryTimer = setInterval(()=>{
+      voiceRetries++;
+      const voices = window.speechSynthesis.getVoices();
+      if(voices.length > 0 || voiceRetries > 8){
+        populateVoices();
+        clearInterval(voiceRetryTimer);
+      }
+    }, 400);
+  } else {
+    voiceSelect.innerHTML = '<option>Sprachausgabe wird von diesem Browser nicht unterstützt</option>';
+  }
+
+  applySettingsToForm();
+
+  /* ============ Chat-Verlauf ============ */
+  const chatLog = document.getElementById('chatLog');
+  function addMessage(role, text){
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    if(role === 'user' || role === 'assistant'){
+      const meta = document.createElement('span');
+      meta.className = 'msg-meta';
+      meta.textContent = (role === 'user' ? 'DU' : 'NOVA') + ' · ' + new Date().toLocaleTimeString('de-DE',{hour12:false});
+      div.appendChild(meta);
+    }
+    const body = document.createElement('div');
+    body.textContent = text;
+    div.appendChild(body);
+    chatLog.appendChild(div);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  addMessage('system', 'NOVA ist bereit. Mikrofon berühren oder unten tippen, um zu beginnen.');
+
+  /* ============ Zustandsmaschine ============ */
+  // Zustände: idle | listening | thinking | speaking
+  let state = 'idle';
+  const stateLabel = document.getElementById('stateLabel');
+  const stateSub = document.getElementById('stateSub');
+  const micBtn = document.getElementById('micBtn');
+  const hintText = document.getElementById('hintText');
+
+  const STATE_TEXT = {
+    idle:      { label: 'BEREIT',        sub: 'Mikrofon zum Starten berühren', hint: 'Tippen zum Sprechen, erneut tippen zum Beenden' },
+    listening: { label: 'ICH HÖRE ZU',   sub: 'Sprich jetzt …',                 hint: 'Erneut tippen zum Beenden' },
+    thinking:  { label: 'VERARBEITE',    sub: 'Antwort wird erstellt …',        hint: 'Einen Moment …' },
+    speaking:  { label: 'ANTWORT',       sub: 'NOVA spricht …',                 hint: 'Zum Unterbrechen erneut tippen' }
+  };
+
+  function setState(next){
+    state = next;
+    const t = STATE_TEXT[next];
+    stateLabel.textContent = t.label;
+    stateLabel.className = 'core-state ' + (next === 'listening' ? 'listening' : next === 'thinking' ? 'thinking' : '');
+    stateSub.textContent = t.sub;
+    hintText.textContent = t.hint;
+    micBtn.classList.toggle('listening', next === 'listening');
+    micBtn.classList.toggle('speaking', next === 'speaking');
+    micBtn.setAttribute('aria-label', next === 'idle' ? 'Spracheingabe starten' : 'Spracheingabe beenden');
+    visualEnergy.target = next === 'listening' ? 0.85 : next === 'speaking' ? 0.7 : next === 'thinking' ? 0.35 : 0.12;
+    visualHue.target = next === 'listening' ? 1 : next === 'thinking' ? 0.5 : 0;
+  }
+
+  /* ============ Canvas-Visualizer (ruhig, ohne Flackern) ============ */
+  const canvas = document.getElementById('visualizer');
+  const ctx = canvas.getContext('2d');
+  let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  function resizeCanvas(){
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  const visualEnergy = { current: 0.1, target: 0.1 };
+  const visualHue = { current: 0, target: 0 }; // 0 = cyan, 1 = violet, 0.5 = amber
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  setState('idle');
+
+  const RING_COUNT = 3;
+  const DOTS_PER_RING = 48;
+  let t = 0;
+
+  function lerp(a,b,f){ return a + (b-a)*f; }
+
+  function mixColor(hue){
+    // hue: 0 cyan -> 0.5 amber -> 1 violet, smooth interpolation, no hard switching
+    const cyan = [77,216,230];
+    const amber = [255,180,84];
+    const violet = [139,124,255];
+    let c;
+    if(hue <= 0.5){
+      const f = hue / 0.5;
+      c = cyan.map((v,i)=> lerp(v, amber[i], f));
+    }else{
+      const f = (hue - 0.5) / 0.5;
+      c = amber.map((v,i)=> lerp(v, violet[i], f));
+    }
+    return 'rgb(' + c.map(Math.round).join(',') + ')';
+  }
+
+  function draw(){
+    const w = canvas.getBoundingClientRect().width;
+    const h = canvas.getBoundingClientRect().height;
+    const cx = w/2, cy = h/2;
+    const baseR = Math.min(w,h) * 0.30;
+
+    // sanfte Interpolation -> keine abrupten Sprünge
+    visualEnergy.current = lerp(visualEnergy.current, visualEnergy.target, reducedMotion ? 0.03 : 0.045);
+    visualHue.current = lerp(visualHue.current, visualHue.target, 0.04);
+
+    ctx.clearRect(0,0,w,h);
+
+    const color = mixColor(visualHue.current);
+    const energy = visualEnergy.current;
+    const speed = reducedMotion ? 0.004 : 0.012;
+    t += speed * (1 + energy);
+
+    // äußerer ruhiger Referenzring
+    ctx.beginPath();
+    ctx.arc(cx, cy, baseR * 1.32, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(77,216,230,0.10)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Punktringe
+    for(let r=0; r<RING_COUNT; r++){
+      const ringRadius = baseR * (0.62 + r*0.19);
+      const wobbleAmp = (reducedMotion ? 3 : 8) + energy * (reducedMotion ? 4 : 16);
+      for(let i=0;i<DOTS_PER_RING;i++){
+        const angle = (i/DOTS_PER_RING) * Math.PI*2 + t*(0.4 + r*0.15)*(r%2===0?1:-1);
+        const wobble = Math.sin(angle*3 + t*2 + r) * wobbleAmp * 0.5;
+        const rad = ringRadius + wobble;
+        const x = cx + Math.cos(angle) * rad;
+        const y = cy + Math.sin(angle) * rad;
+        const dotBase = 1.1 + r*0.15;
+        const dotSize = dotBase + Math.max(0, Math.sin(angle*4 + t*3)) * (0.8 + energy*1.6);
+        const alpha = 0.18 + 0.55 * (0.4 + 0.6*Math.max(0, Math.sin(angle*2 + t*1.5)));
+        ctx.beginPath();
+        ctx.arc(x, y, dotSize, 0, Math.PI*2);
+        ctx.fillStyle = color.replace('rgb', 'rgba').replace(')', ',' + alpha.toFixed(2) + ')');
+        ctx.fill();
+      }
+    }
+
+    // Kern-Glow, sanft atmend
+    const coreR = baseR * (0.30 + energy * 0.10 + Math.sin(t*1.3) * 0.012);
+    const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,coreR*2.1);
+    grad.addColorStop(0, color.replace('rgb','rgba').replace(')', ',0.35)'));
+    grad.addColorStop(1, color.replace('rgb','rgba').replace(')', ',0)'));
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR*2.1, 0, Math.PI*2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR, 0, Math.PI*2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.4;
+    ctx.globalAlpha = 0.85;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+
+  /* ============ Spracherkennung (Speech-to-Text) ============ */
+  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let recognitionActive = false;
+
+  if(SpeechRecognitionImpl){
+    recognition = new SpeechRecognitionImpl();
+    recognition.lang = 'de-DE';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = ()=>{
+      recognitionActive = true;
+      setState('listening');
+    };
+
+    recognition.onresult = (event)=>{
+      const transcript = event.results[0][0].transcript.trim();
+      if(transcript){
+        addMessage('user', transcript);
+        handleUserInput(transcript);
+      }
+    };
+
+    recognition.onerror = (event)=>{
+      recognitionActive = false;
+      let msg = 'Spracherkennung fehlgeschlagen.';
+      if(event.error === 'not-allowed' || event.error === 'permission-denied'){
+        msg = 'Mikrofonzugriff wurde verweigert. Bitte in den Browsereinstellungen erlauben.';
+      }else if(event.error === 'no-speech'){
+        msg = 'Keine Sprache erkannt.';
+      }
+      addMessage('error', '⚠ ' + msg);
+      setState('idle');
+    };
+
+    recognition.onend = ()=>{
+      recognitionActive = false;
+      if(state === 'listening') setState('idle');
+    };
+  } else {
+    micBtn.disabled = true;
+    hintText.textContent = 'Spracherkennung wird von diesem Browser nicht unterstützt — bitte unten tippen';
+  }
+
+  micBtn.addEventListener('click', ()=>{
+    if(!recognition) return;
+
+    if(state === 'speaking'){
+      window.speechSynthesis.cancel();
+      setState('idle');
+      return;
+    }
+    if(recognitionActive){
+      recognition.stop();
+      return;
+    }
+    try{
+      recognition.start();
+    }catch(e){
+      addMessage('error', '⚠ Mikrofon konnte nicht gestartet werden.');
+    }
+  });
+
+  /* ============ Sprachausgabe (Text-to-Speech) ============ */
+  function speak(text){
+    if(!('speechSynthesis' in window)){
+      setState('idle');
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'de-DE';
+    utter.rate = settings.rate || 1;
+    utter.pitch = 1;
+
+    const voices = window.speechSynthesis.getVoices();
+    const chosen = voices.find(v => v.voiceURI === settings.voiceURI);
+    if(chosen) utter.voice = chosen;
+
+    utter.onstart = ()=> setState('speaking');
+    utter.onend = ()=>{
+      setState('idle');
+      if(settings.autoListen && recognition){
+        setTimeout(()=>{ try{ recognition.start(); }catch(e){} }, 300);
+      }
+    };
+    utter.onerror = ()=> setState('idle');
+
+    window.speechSynthesis.speak(utter);
+  }
+
+  /* ============ Eingabeverarbeitung ============ */
+  async function handleUserInput(text){
+    setState('thinking');
+
+    const connected = !!(settings.endpoint && settings.apiKey);
+    if(connected){
+      try{
+        const reply = await callExternalAPI(text);
+        addMessage('assistant', reply);
+        speak(reply);
+      }catch(err){
+        addMessage('error', '⚠ API-Anfrage fehlgeschlagen: ' + err.message);
+        const fallback = localReply(text);
+        addMessage('assistant', fallback);
+        speak(fallback);
+      }
+    }else{
+      const reply = localReply(text);
+      addMessage('assistant', reply);
+      speak(reply);
+    }
+  }
+
+  async function callExternalAPI(text){
+    let res;
+    try{
+      res = await fetch(settings.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + settings.apiKey
+        },
+        body: JSON.stringify({
+          model: settings.model || 'openrouter/free',
+          messages: [
+            { role: 'system', content: 'Du bist NOVA, ein präziser, freundlicher persönlicher KI-Sprachassistent. Antworte kurz und natürlich auf Deutsch, geeignet zum Vorlesen.' },
+            { role: 'user', content: text }
+          ]
+        })
+      });
+    }catch(networkErr){
+      throw new Error('Keine Verbindung zum Endpunkt — prüfe die URL und deine Internetverbindung.');
+    }
+
+    if(!res.ok){
+      if(res.status === 401 || res.status === 403){
+        throw new Error('Schlüssel wurde abgelehnt (HTTP ' + res.status + ') — bitte in den Einstellungen prüfen.');
+      }
+      if(res.status === 429){
+        throw new Error('Anfragelimit erreicht (HTTP 429) — kurz warten und erneut versuchen.');
+      }
+      throw new Error('HTTP ' + res.status);
+    }
+
+    const data = await res.json();
+    const content =
+      data?.choices?.[0]?.message?.content ||
+      data?.content?.[0]?.text ||
+      data?.reply;
+    if(!content) throw new Error('Unerwartetes Antwortformat vom Endpunkt.');
+    return content.trim();
+  }
+
+  /* Lokaler Basis-Assistent — funktioniert ohne jede Konfiguration */
+  function localReply(rawText){
+    const text = rawText.toLowerCase();
+
+    if(/^(hallo|hi|hey|servus|guten tag|moin)/.test(text)){
+      return 'Hallo. Ich bin NOVA. Wie kann ich helfen?';
+    }
+    if(text.includes('wie spät') || text.includes('uhrzeit')){
+      return 'Es ist jetzt ' + new Date().toLocaleTimeString('de-DE',{hour12:false}) + ' Uhr.';
+    }
+    if(text.includes('datum') || text.includes('welcher tag')){
+      return 'Heute ist der ' + new Date().toLocaleDateString('de-DE', {weekday:'long', day:'numeric', month:'long', year:'numeric'}) + '.';
+    }
+    if(text.includes('wer bist du') || text.includes('was bist du')){
+      return 'Ich bin NOVA, dein persönlicher Sprachassistent. Aktuell laufe ich im lokalen Modus ohne verbundene KI-API — das kannst du in den Einstellungen ändern.';
+    }
+    if(text.includes('danke')){
+      return 'Gern geschehen.';
+    }
+    if(text.includes('name')){
+      return 'Mein Name ist NOVA.';
+    }
+    return 'Ich habe dich gehört: „' + rawText + '“. Für vollständige, intelligente Antworten verbinde bitte eine KI-API über das Einstellungen-Symbol oben rechts.';
+  }
+
+  /* ============ Text-Eingabe ============ */
+  const composer = document.getElementById('composer');
+  const textInput = document.getElementById('textInput');
+  composer.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const val = textInput.value.trim();
+    if(!val) return;
+    addMessage('user', val);
+    textInput.value = '';
+    handleUserInput(val);
+  });
+
+})();
+</script>
+</body>
+</html>
