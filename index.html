@@ -622,7 +622,10 @@
 
     <div class="field-group">
       <label for="voiceSelect">SYSTEMSTIMME</label>
-      <select id="voiceSelect"></select>
+      <div class="field-row">
+        <select id="voiceSelect" style="flex:1;"></select>
+        <button type="button" class="btn-ghost" id="testVoice" style="flex-shrink:0; padding:9px 12px;">TESTEN</button>
+      </div>
       <div class="field-hint" id="voiceHint">Stimmen werden geladen …</div>
     </div>
 
@@ -758,7 +761,21 @@
 
   clearChatBtn.addEventListener('click', ()=>{
     chatLog.innerHTML = '';
+    conversationHistory = [];
     addMessage('system', 'Verlauf gelöscht.');
+  });
+
+  const testVoiceBtn = document.getElementById('testVoice');
+  testVoiceBtn.addEventListener('click', ()=>{
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance('Hallo, ich bin NOVA. So klingt diese Stimme.');
+    utter.lang = 'de-DE';
+    utter.rate = parseFloat(rateSlider.value) || 1;
+    const voices = window.speechSynthesis.getVoices();
+    const chosen = voices.find(v => v.voiceURI === voiceSelect.value);
+    if(chosen) utter.voice = chosen;
+    window.speechSynthesis.speak(utter);
   });
 
   /* ============ Stimmen ============ */
@@ -831,7 +848,7 @@
     chatLog.scrollTop = chatLog.scrollHeight;
   }
 
-  addMessage('system', 'NOVA ist bereit. Mikrofon berühren oder unten tippen, um zu beginnen.');
+  addMessage('system', 'NOVA ist bereit. Mikrofon berühren oder unten tippen. Auch ohne KI-Verbindung: Timer, Erinnerungen, Rechnen und Wetter funktionieren direkt.');
 
   /* ============ Zustandsmaschine ============ */
   // Zustände: idle | listening | thinking | speaking
@@ -848,7 +865,12 @@
     speaking:  { label: 'ANTWORT',       sub: 'NOVA spricht …',                 hint: 'Zum Unterbrechen erneut tippen' }
   };
 
+  function vibrate(pattern){
+    try{ if(navigator.vibrate) navigator.vibrate(pattern); }catch(e){}
+  }
+
   function setState(next){
+    const prev = state;
     state = next;
     const t = STATE_TEXT[next];
     stateLabel.textContent = t.label;
@@ -860,6 +882,8 @@
     micBtn.setAttribute('aria-label', next === 'idle' ? 'Spracheingabe starten' : 'Spracheingabe beenden');
     visualEnergy.target = next === 'listening' ? 0.85 : next === 'speaking' ? 0.7 : next === 'thinking' ? 0.35 : 0.12;
     visualHue.target = next === 'listening' ? 1 : next === 'thinking' ? 0.5 : 0;
+    if(next === 'listening' && prev !== 'listening') vibrate(30);
+    if(next === 'idle' && prev === 'speaking') vibrate(15);
   }
 
   /* ============ Canvas-Visualizer (ruhig, ohne Flackern) ============ */
@@ -1036,13 +1060,32 @@
   });
 
   /* ============ Sprachausgabe (Text-to-Speech) ============ */
+  function cleanForSpeech(text){
+    return text
+      .replace(/```[\s\S]*?```/g, '')          // Codeblöcke entfernen
+      .replace(/`([^`]+)`/g, '$1')             // Inline-Code
+      .replace(/\*\*([^*]+)\*\*/g, '$1')       // Fett
+      .replace(/\*([^*]+)\*/g, '$1')           // Kursiv
+      .replace(/__([^_]+)__/g, '$1')
+      .replace(/_([^_]+)_/g, '$1')
+      .replace(/~~([^~]+)~~/g, '$1')           // Durchgestrichen
+      .replace(/^#{1,6}\s*/gm, '')             // Überschriften-Rauten
+      .replace(/^[-*+]\s+/gm, '')              // Aufzählungszeichen
+      .replace(/^\d+\.\s+/gm, '')              // Nummerierte Listen
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Markdown-Links -> nur Text
+      .replace(/[#*_~`>|]/g, '')               // verbliebene Sonderzeichen
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
   function speak(text){
     if(!('speechSynthesis' in window)){
       setState('idle');
       return;
     }
     window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
+    const cleanText = cleanForSpeech(text);
+    const utter = new SpeechSynthesisUtterance(cleanText || text);
     utter.lang = 'de-DE';
     utter.rate = settings.rate || 1;
     utter.pitch = 1;
@@ -1063,17 +1106,169 @@
     window.speechSynthesis.speak(utter);
   }
 
+  /* ============ Gesprächsgedächtnis ============ */
+  let conversationHistory = [];
+  const MAX_HISTORY = 10; // 5 Gesprächsrunden
+
+  /* ============ Lokale Fähigkeiten (funktionieren ohne KI-API) ============ */
+  function tryCalculate(text){
+    let expr = text.toLowerCase()
+      .replace(/was ist|wie viel ist|wieviel ist|rechne|berechne|ergibt|gleich|bitte/g,'')
+      .replace(/geteilt durch|dividiert durch/g,'/')
+      .replace(/hoch/g,'**')
+      .replace(/plus/g,'+')
+      .replace(/minus/g,'-')
+      .replace(/\bmal\b/g,'*')
+      .replace(/[?.!]/g,'')
+      .trim();
+    if(!expr || !/\d/.test(expr) || !/^[\d+\-*/().,\s]+$/.test(expr)) return null;
+    expr = expr.replace(/,/g,'.');
+    try{
+      const result = Function('"use strict"; return (' + expr + ')')();
+      if(typeof result !== 'number' || !isFinite(result)) return null;
+      return Math.round(result * 10000) / 10000;
+    }catch(e){ return null; }
+  }
+
+  function parseDuration(amountStr, unitStr){
+    const amount = parseFloat(amountStr.replace(',','.'));
+    const unit = unitStr.toLowerCase();
+    let ms, label;
+    if(unit.startsWith('sek')){ ms = amount*1000; label = amount + ' Sekunden'; }
+    else if(unit.startsWith('min')){ ms = amount*60000; label = amount + ' Minuten'; }
+    else { ms = amount*3600000; label = amount + ' Stunden'; }
+    return { ms, label };
+  }
+
+  function tryTimer(text){
+    if(!/\b(timer|wecker|countdown)\b/i.test(text)) return null;
+    const m = text.match(/(\d+(?:[.,]\d+)?)\s*(sekunden?|sek|minuten?|min\b|stunden?|std)/i);
+    if(!m) return null;
+    return parseDuration(m[1], m[2]);
+  }
+
+  function startTimer(duration){
+    const reply = 'Timer über ' + duration.label + ' gestartet.';
+    addMessage('assistant', reply);
+    speak(reply);
+    setTimeout(()=>{
+      addMessage('system', '⏰ Timer abgelaufen — ' + duration.label);
+      speak('Dein Timer über ' + duration.label + ' ist abgelaufen.');
+      vibrate([200,100,200,100,400]);
+      tryNotify('NOVA Timer', 'Timer über ' + duration.label + ' ist abgelaufen.');
+    }, duration.ms);
+  }
+
+  function tryReminder(text){
+    const m = text.match(/erinner\w*.*?(\d+(?:[.,]\d+)?)\s*(sekunden?|sek|minuten?|min\b|stunden?|std)(?:\s*(?:an|dass|,)\s*(.+))?/i);
+    if(!m) return null;
+    const duration = parseDuration(m[1], m[2]);
+    const note = m[3] ? m[3].trim().replace(/[.?!]+$/,'') : '';
+    return { ...duration, note };
+  }
+
+  function startReminder(r){
+    const reply = 'Erinnerung in ' + r.label + (r.note ? (' an „' + r.note + '"') : '') + ' gestellt.';
+    addMessage('assistant', reply);
+    speak(reply);
+    setTimeout(()=>{
+      const spoken = r.note ? ('Erinnerung: ' + r.note) : 'Das ist deine Erinnerung.';
+      addMessage('system', '⏰ ' + spoken);
+      speak(spoken);
+      vibrate([200,100,200,100,400]);
+      tryNotify('NOVA Erinnerung', r.note || 'Zeit ist um!');
+    }, r.ms);
+  }
+
+  function tryNotify(title, body){
+    try{
+      if(!('Notification' in window)) return;
+      if(Notification.permission === 'granted'){
+        new Notification(title, {body});
+      }else if(Notification.permission !== 'denied'){
+        Notification.requestPermission().then(p=>{ if(p === 'granted') new Notification(title, {body}); });
+      }
+    }catch(e){ /* Benachrichtigungen nicht verfügbar */ }
+  }
+
+  const WEATHER_CODES = {
+    0:'klarer Himmel', 1:'überwiegend klar', 2:'teilweise bewölkt', 3:'bedeckt',
+    45:'neblig', 48:'neblig mit Reif', 51:'leichter Nieselregen', 53:'mäßiger Nieselregen',
+    55:'starker Nieselregen', 61:'leichter Regen', 63:'mäßiger Regen', 65:'starker Regen',
+    71:'leichter Schneefall', 73:'mäßiger Schneefall', 75:'starker Schneefall',
+    80:'Regenschauer', 81:'kräftige Regenschauer', 82:'heftige Regenschauer',
+    95:'Gewitter', 96:'Gewitter mit Hagel', 99:'starkes Gewitter mit Hagel'
+  };
+
+  function handleWeather(){
+    return new Promise((resolve)=>{
+      if(!('geolocation' in navigator)){
+        addMessage('error', '⚠ Standortzugriff wird von diesem Browser nicht unterstützt.');
+        resolve();
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(async (pos)=>{
+        try{
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude + '&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto');
+          const data = await res.json();
+          const temp = Math.round(data.current.temperature_2m);
+          const wind = Math.round(data.current.wind_speed_10m);
+          const desc = WEATHER_CODES[data.current.weather_code] || 'wechselhaftes Wetter';
+          const reply = 'Aktuell sind es ' + temp + ' Grad, ' + desc + ', Wind ' + wind + ' Kilometer pro Stunde.';
+          addMessage('assistant', reply);
+          speak(reply);
+        }catch(e){
+          addMessage('error', '⚠ Wetterdaten konnten nicht geladen werden.');
+        }
+        resolve();
+      }, ()=>{
+        addMessage('error', '⚠ Standortzugriff wurde verweigert — für Wetterdaten bitte in den Browsereinstellungen erlauben.');
+        resolve();
+      }, { timeout: 8000 });
+    });
+  }
+
   /* ============ Eingabeverarbeitung ============ */
   async function handleUserInput(text){
+    // Lokale Fähigkeiten haben Vorrang — schnell, ohne API
+    if(/wetter/i.test(text)){
+      setState('thinking');
+      addMessage('system', '📍 Ermittle Standort …');
+      await handleWeather();
+      setState('idle');
+      return;
+    }
+    const timer = tryTimer(text);
+    if(timer){ startTimer(timer); return; }
+
+    const reminder = tryReminder(text);
+    if(reminder){ startReminder(reminder); return; }
+
+    if(/\b(rechne|berechne|was ist|wie viel ist|wieviel ist)\b/i.test(text)){
+      const calcResult = tryCalculate(text);
+      if(calcResult !== null){
+        const reply = 'Das Ergebnis ist ' + calcResult + '.';
+        addMessage('assistant', reply);
+        speak(reply);
+        return;
+      }
+    }
+
     setState('thinking');
 
     const connected = !!(settings.endpoint && settings.apiKey);
     if(connected){
+      conversationHistory.push({ role: 'user', content: text });
+      if(conversationHistory.length > MAX_HISTORY) conversationHistory = conversationHistory.slice(-MAX_HISTORY);
       try{
-        const reply = await callExternalAPI(text);
+        const reply = await callExternalAPI();
+        conversationHistory.push({ role: 'assistant', content: reply });
+        if(conversationHistory.length > MAX_HISTORY) conversationHistory = conversationHistory.slice(-MAX_HISTORY);
         addMessage('assistant', reply);
         speak(reply);
       }catch(err){
+        conversationHistory.pop(); // fehlgeschlagene Anfrage nicht im Verlauf behalten
         addMessage('error', '⚠ API-Anfrage fehlgeschlagen: ' + err.message);
         const fallback = localReply(text);
         addMessage('assistant', fallback);
@@ -1086,7 +1281,7 @@
     }
   }
 
-  async function callExternalAPI(text){
+  async function callExternalAPI(){
     let res;
     try{
       res = await fetch(settings.endpoint, {
@@ -1098,8 +1293,8 @@
         body: JSON.stringify({
           model: settings.model || 'openrouter/free',
           messages: [
-            { role: 'system', content: 'Du bist NOVA, ein präziser, freundlicher persönlicher KI-Sprachassistent. Antworte kurz und natürlich auf Deutsch, geeignet zum Vorlesen.' },
-            { role: 'user', content: text }
+            { role: 'system', content: 'Du bist NOVA, ein präziser, freundlicher persönlicher KI-Sprachassistent. Antworte kurz und natürlich auf Deutsch, in reinem Fließtext ohne Markdown-Formatierung (keine Sternchen, Rauten, Unterstriche, Listen oder Codeblöcke), da die Antwort direkt vorgelesen wird. Beziehe dich bei Bedarf auf den bisherigen Gesprächsverlauf.' },
+            ...conversationHistory
           ]
         })
       });
@@ -1140,13 +1335,16 @@
       return 'Heute ist der ' + new Date().toLocaleDateString('de-DE', {weekday:'long', day:'numeric', month:'long', year:'numeric'}) + '.';
     }
     if(text.includes('wer bist du') || text.includes('was bist du')){
-      return 'Ich bin NOVA, dein persönlicher Sprachassistent. Aktuell laufe ich im lokalen Modus ohne verbundene KI-API — das kannst du in den Einstellungen ändern.';
+      return 'Ich bin NOVA, dein persönlicher Sprachassistent. Ich kann Timer, Erinnerungen, Rechnen und Wetter direkt lokal — für offene Fragen verbinde eine KI-API über das Einstellungen-Symbol oben rechts.';
     }
     if(text.includes('danke')){
       return 'Gern geschehen.';
     }
     if(text.includes('name')){
       return 'Mein Name ist NOVA.';
+    }
+    if(text.includes('was kannst du')){
+      return 'Ich kann Timer stellen, dich an etwas erinnern, rechnen und dir das aktuelle Wetter sagen — auch ohne KI-Verbindung. Für freie Gespräche verbinde eine KI-API in den Einstellungen.';
     }
     return 'Ich habe dich gehört: „' + rawText + '“. Für vollständige, intelligente Antworten verbinde bitte eine KI-API über das Einstellungen-Symbol oben rechts.';
   }
